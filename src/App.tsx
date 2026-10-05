@@ -65,8 +65,14 @@ export default function App() {
   const [isRevisionsOpen, setIsRevisionsOpen] = useState(false);
   const [isMobileInstallOpen, setIsMobileInstallOpen] = useState(false);
   const [isExerciseCreatorOpen, setIsExerciseCreatorOpen] = useState(false);
+  const [exerciseToEdit, setExerciseToEdit] = useState<TeacherExercise | null>(null);
   const [isGdprOpen, setIsGdprOpen] = useState(false);
   const [lightboxPhoto, setLightboxPhoto] = useState<{ url: string; title: string } | null>(null);
+
+  const handleOpenExerciseCreator = (exercise?: TeacherExercise) => {
+    setExerciseToEdit(exercise || null);
+    setIsExerciseCreatorOpen(true);
+  };
 
   const [userSettings, setUserSettings] = useState<UserSettings>(getUserSettings());
   const [isLoading, setIsLoading] = useState(true);
@@ -494,7 +500,7 @@ export default function App() {
                   if (projId) setActiveProjectId(projId);
                   handleOpenToolWithProject('TUTORIAL');
                 }}
-                onOpenExerciseCreator={() => setIsExerciseCreatorOpen(true)}
+                onOpenExerciseCreator={() => handleOpenExerciseCreator()}
                 onOpenAccounts={() => setView('ACCOUNTS')}
                 onOpenFieldMonitor={() => setView('FIELD_MONITOR')}
                 onOpenAPKExport={() => setView('APK_EXPORT')}
@@ -513,7 +519,7 @@ export default function App() {
                 userSettings={userSettings}
                 currentUser={currentUser}
                 onStartExerciseProject={handleStartExerciseProject}
-                onOpenExerciseCreator={() => setIsExerciseCreatorOpen(true)}
+                onOpenExerciseCreator={handleOpenExerciseCreator}
                 onProjectCreated={(newId) => {
                   setActiveProjectId(newId);
                   setView('CHECKLIST');
@@ -588,7 +594,7 @@ export default function App() {
         }}
         onOpenExerciseCreator={() => {
           setIsNavMenuOpen(false);
-          setIsExerciseCreatorOpen(true);
+          handleOpenExerciseCreator();
         }}
         onOpenAPKExport={() => {
           setIsNavMenuOpen(false);
@@ -793,8 +799,12 @@ export default function App() {
       {/* Lärarpanel: Övningskreatör Modal */}
       <TeacherExerciseCreatorModal
         isOpen={isExerciseCreatorOpen}
-        onClose={() => setIsExerciseCreatorOpen(false)}
+        onClose={() => {
+          setIsExerciseCreatorOpen(false);
+          setExerciseToEdit(null);
+        }}
         currentUser={currentUser}
+        initialExerciseToEdit={exerciseToEdit}
         onStartExerciseProject={handleStartExerciseProject}
       />
 

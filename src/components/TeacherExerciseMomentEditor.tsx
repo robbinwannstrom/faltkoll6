@@ -23,6 +23,7 @@ interface TeacherExerciseMomentEditorProps {
   projectType: ProjectType;
   activeMoments: MomentDefinition[];
   onChangeActiveMoments: (moments: MomentDefinition[]) => void;
+  isEditingExistingExercise?: boolean;
 }
 
 export const TeacherExerciseMomentEditor: React.FC<TeacherExerciseMomentEditorProps> = ({
@@ -30,6 +31,7 @@ export const TeacherExerciseMomentEditor: React.FC<TeacherExerciseMomentEditorPr
   projectType,
   activeMoments,
   onChangeActiveMoments,
+  isEditingExistingExercise = false,
 }) => {
   const [expandedPhaseNum, setExpandedPhaseNum] = useState<number | null>(1);
   const [expandedMomentId, setExpandedMomentId] = useState<string | null>(null);
@@ -56,32 +58,34 @@ export const TeacherExerciseMomentEditor: React.FC<TeacherExerciseMomentEditorPr
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [libraryFilterType, setLibraryFilterType] = useState<ProjectType>('HUSGRUND');
 
-  // Build phases map
+  // Build phases map:
+  // When editing an existing exercise, activeMoments is the single source of truth so all imported or customized moments are preserved!
   const phasesMap: Record<number, { name: string; moments: MomentDefinition[] }> = {};
-  const sourceMoments =
-    mode === 'TEMPLATE_FORM'
-      ? ALL_MOMENTS.filter((m) => m.projectType === projectType)
-      : activeMoments;
-
-  sourceMoments.forEach((m) => {
-    if (!phasesMap[m.phaseNumber]) {
-      phasesMap[m.phaseNumber] = { name: m.phaseName, moments: [] };
-    }
-    if (!phasesMap[m.phaseNumber].moments.some((x) => x.id === m.id)) {
-      phasesMap[m.phaseNumber].moments.push(m);
-    }
-  });
+  const isEditing = Boolean(isEditingExistingExercise);
 
   activeMoments.forEach((m) => {
     if (!phasesMap[m.phaseNumber]) {
-      phasesMap[m.phaseNumber] = { name: m.phaseName, moments: [] };
-    } else if (m.phaseName && m.id.includes('custom')) {
+      phasesMap[m.phaseNumber] = { name: m.phaseName || `FAS ${m.phaseNumber}`, moments: [] };
+    } else if (m.phaseName) {
       phasesMap[m.phaseNumber].name = m.phaseName;
     }
     if (!phasesMap[m.phaseNumber].moments.some((x) => x.id === m.id)) {
       phasesMap[m.phaseNumber].moments.push(m);
     }
   });
+
+  // If in new template creation mode (not editing existing), also include unused template moments for selection
+  if (mode === 'TEMPLATE_FORM' && !isEditing) {
+    const templateMoments = ALL_MOMENTS.filter((m) => m.projectType === projectType);
+    templateMoments.forEach((m) => {
+      if (!phasesMap[m.phaseNumber]) {
+        phasesMap[m.phaseNumber] = { name: m.phaseName, moments: [] };
+      }
+      if (!phasesMap[m.phaseNumber].moments.some((x) => x.id === m.id)) {
+        phasesMap[m.phaseNumber].moments.push(m);
+      }
+    });
+  }
 
   const sortedPhaseNumbers = Object.keys(phasesMap)
     .map(Number)
@@ -540,12 +544,12 @@ export const TeacherExerciseMomentEditor: React.FC<TeacherExerciseMomentEditorPr
                     </button>
                   )}
 
-                  {mode === 'SCRATCH_FORM' && (
+                  {(mode === 'SCRATCH_FORM' || isEditing) && (
                     <button
                       type="button"
                       onClick={() => handleDeletePhase(phaseNum)}
                       className="text-[11px] text-rose-400 hover:text-rose-300 px-1.5 py-0.5 rounded hover:bg-rose-950/50 cursor-pointer"
-                      title="Ta bort hela fasen"
+                      title="Ta bort hela fasen och dess moment"
                     >
                       Ta bort fas
                     </button>
@@ -679,12 +683,12 @@ export const TeacherExerciseMomentEditor: React.FC<TeacherExerciseMomentEditorPr
                               </>
                             )}
 
-                            {(mode === 'SCRATCH_FORM' || moment.id.includes('custom')) && (
+                            {(mode === 'SCRATCH_FORM' || isEditing || moment.id.includes('custom') || isChecked) && (
                               <button
                                 type="button"
                                 onClick={() => handleDeleteMoment(moment.id)}
                                 className="p-1.5 text-slate-500 hover:text-rose-400 cursor-pointer shrink-0"
-                                title="Ta bort moment"
+                                title="Ta bort moment ur övningen"
                               >
                                 <Trash2 className="w-3.5 h-3.5 shrink-0" />
                               </button>

@@ -142,6 +142,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
 
   // Exercise Creator modal
   const [isExerciseCreatorOpen, setIsExerciseCreatorOpen] = useState(false);
+  const [exerciseToEdit, setExerciseToEdit] = useState<TeacherExercise | null>(null);
 
   // License & Permissions State
   const [license, setLicense] = useState<AppLicense>({
@@ -2908,9 +2909,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
         <TeacherExerciseCreatorModal
           isOpen={isExerciseCreatorOpen}
           currentUser={currentUser}
-          onClose={() => setIsExerciseCreatorOpen(false)}
+          initialExerciseToEdit={exerciseToEdit}
+          onClose={() => {
+            setIsExerciseCreatorOpen(false);
+            setExerciseToEdit(null);
+          }}
           onStartExerciseProject={(ex) => {
             setIsExerciseCreatorOpen(false);
+            setExerciseToEdit(null);
             if (onStartExerciseProject) {
               onStartExerciseProject(ex);
             }

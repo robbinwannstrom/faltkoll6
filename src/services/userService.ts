@@ -149,6 +149,27 @@ export function canManageAccounts(actor: UserAccount | null | undefined): boolea
 }
 
 /**
+ * Check if the user is authorized to create, edit, and manage teacher exercises.
+ * Lärare (TEACHER), Skoladmin (SCHOOL_ADMIN) och Huvudadmin (ADMIN) har full behörighet att redigera övningar efter att de blivit skapade.
+ * Elever och vanliga arbetare har INTE behörighet att redigera övningar.
+ */
+export function canEditExercise(actor: UserAccount | null | undefined): boolean {
+  if (!actor) return false;
+  const actorEmail = actor.email?.toLowerCase().trim();
+  if (actorEmail === 'robbinwannstrom@gmail.com' || actorEmail === 'admin@faltkoll.se') {
+    return true;
+  }
+  if (actor.role === 'STUDENT' || (actor.role as any) === 'WORKER') {
+    return false;
+  }
+  return (
+    actor.role === 'TEACHER' ||
+    actor.role === 'SCHOOL_ADMIN' ||
+    actor.role === 'ADMIN'
+  );
+}
+
+/**
  * Rank-based authorization check:
  * - ADMIN (Rank 4) & SCHOOL_ADMIN (Rank 3): Kan ändra ALLT på alla konton
  * - TEACHER (Rank 2): Kan redigera sitt eget konto samt alla konton UNDER sin rank (dvs. STUDENT / Elev med Rank 1)

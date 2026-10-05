@@ -19,6 +19,8 @@ import {
   Sparkles,
   FileUp,
   Loader2,
+  Plus,
+  Edit3,
 } from 'lucide-react';
 import {
   fetchTeacherExercises,
@@ -26,7 +28,7 @@ import {
   convertExerciseToProject,
   importExerciseFromPdf,
 } from '../services/exerciseService';
-import { getLocalCustomStudentGroups } from '../services/userService';
+import { getLocalCustomStudentGroups, canEditExercise } from '../services/userService';
 import {
   getContextVocabulary,
   resolveAppContextMode,
@@ -41,7 +43,7 @@ interface CreateProjectViewProps {
   userSettings?: UserSettings;
   currentUser?: UserAccount | null;
   onStartExerciseProject?: (exercise: TeacherExercise) => void;
-  onOpenExerciseCreator?: () => void;
+  onOpenExerciseCreator?: (exerciseToEdit?: TeacherExercise) => void;
 }
 
 export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
@@ -57,6 +59,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   const activeContextMode = resolveAppContextMode(userSettings, currentUser);
   const vocab = getContextVocabulary(activeContextMode);
   const contextGroups = getDefaultGroupsForContext(activeContextMode);
+  const canEdit = canEditExercise(currentUser);
 
   const [creationMode, setCreationMode] = useState<'TEACHER_EXERCISE' | 'STANDARD_TEMPLATE' | 'PDF_IMPORT'>(
     activeContextMode === 'WORKPLACE' ? 'STANDARD_TEMPLATE' : 'TEACHER_EXERCISE'
@@ -268,7 +271,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
         {currentUser?.role !== 'STUDENT' && onOpenExerciseCreator && (
           <button
             type="button"
-            onClick={onOpenExerciseCreator}
+            onClick={() => onOpenExerciseCreator()}
             className="min-h-[44px] px-4 bg-orange-500/15 hover:bg-orange-500/25 text-orange-400 border border-orange-500/40 font-black text-xs rounded-xl flex items-center gap-2 cursor-pointer transition-all"
           >
             <BookOpen className="w-4 h-4" />
@@ -429,16 +432,30 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
                 </p>
               </div>
 
-              {/* Sökfält */}
-              <div className="relative min-w-[200px]">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={exerciseSearch}
-                  onChange={(e) => setExerciseSearch(e.target.value)}
-                  placeholder="Sök namn eller kod..."
-                  className="w-full min-h-[38px] pl-9 pr-3 bg-[#121212] border border-[#333333] focus:border-orange-500 rounded-xl text-xs text-white placeholder-slate-500 outline-none"
-                />
+              {/* Sökfält & Skapa-knapp */}
+              <div className="flex flex-wrap items-center gap-2">
+                {canEdit && onOpenExerciseCreator && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenExerciseCreator()}
+                    className="min-h-[38px] px-3.5 bg-orange-500/15 hover:bg-orange-500/25 text-orange-300 border border-orange-500/40 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
+                    title="Skapa ny övning eller anpassa mall"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>Skapa ny övning</span>
+                  </button>
+                )}
+
+                <div className="relative min-w-[200px]">
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={exerciseSearch}
+                    onChange={(e) => setExerciseSearch(e.target.value)}
+                    placeholder="Sök namn eller kod..."
+                    className="w-full min-h-[38px] pl-9 pr-3 bg-[#121212] border border-[#333333] focus:border-orange-500 rounded-xl text-xs text-white placeholder-slate-500 outline-none"
+                  />
+                </div>
               </div>
             </div>
 
@@ -525,15 +542,29 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
                         </h4>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleStartExercise(ex)}
-                        disabled={isStartingExercise}
-                        className="min-h-[42px] px-4 bg-orange-500 hover:bg-orange-400 active:scale-95 text-black font-black text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-orange-500/20 transition-all shrink-0"
-                      >
-                        <Play className="w-3.5 h-3.5 fill-black" />
-                        <span>Starta denna övning</span>
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {canEdit && onOpenExerciseCreator && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenExerciseCreator(ex)}
+                            className="min-h-[42px] px-3.5 bg-[#202020] hover:bg-[#2b2b2b] text-orange-400 hover:text-orange-300 border border-orange-500/40 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all shrink-0"
+                            title="Redigera övningens moment, rubriker, ritning och inställningar"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-orange-400" />
+                            <span>Redigera övning</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleStartExercise(ex)}
+                          disabled={isStartingExercise}
+                          className="min-h-[42px] px-4 bg-orange-500 hover:bg-orange-400 active:scale-95 text-black font-black text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-orange-500/20 transition-all shrink-0"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-black" />
+                          <span>Starta denna övning</span>
+                        </button>
+                      </div>
                     </div>
 
                     {ex.description && (
@@ -542,14 +573,14 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
                       </p>
                     )}
 
-                    {ex.fieldMeasurements && (ex.fieldMeasurements.sideA || ex.fieldMeasurements.fallCmPerM) && (
+                    {((ex.fieldMeasurements && (ex.fieldMeasurements.sideA || ex.fieldMeasurements.fallCmPerM)) || ex.createdByTeacherName || ex.lastEditedByTeacherName) && (
                       <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 bg-[#161616] p-2 rounded-xl border border-[#242424]">
-                        {ex.fieldMeasurements.sideA && ex.fieldMeasurements.sideB && (
+                        {ex.fieldMeasurements?.sideA && ex.fieldMeasurements?.sideB && (
                           <span>
                             📐 Mått: <strong>{ex.fieldMeasurements.sideA} × {ex.fieldMeasurements.sideB} m</strong>
                           </span>
                         )}
-                        {ex.fieldMeasurements.fallCmPerM && (
+                        {ex.fieldMeasurements?.fallCmPerM && (
                           <span>
                             💧 Fall: <strong>{ex.fieldMeasurements.fallCmPerM} cm/m</strong>
                           </span>
@@ -557,6 +588,11 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
                         {ex.createdByTeacherName && (
                           <span>
                             👨‍🏫 Skapad av: <strong>{ex.createdByTeacherName}</strong>
+                          </span>
+                        )}
+                        {ex.lastEditedByTeacherName && (
+                          <span className="text-amber-300 font-medium">
+                            ✏️ Ändrad av: <strong>{ex.lastEditedByTeacherName}</strong>
                           </span>
                         )}
                       </div>

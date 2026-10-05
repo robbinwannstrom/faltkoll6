@@ -209,6 +209,8 @@ export interface TeacherExercise {
   updatedAt?: string;
   createdByTeacherName: string;
   createdByTeacherId: string;
+  lastEditedByTeacherName?: string;
+  lastEditedByTeacherId?: string;
   links: ExerciseLink[];
   attachedPdf?: AttachedPdfDoc;
   customMoments: MomentDefinition[]; // Alla anpassade moment för denna specifika övning

@@ -19,7 +19,7 @@ import {
   SAMPLE_FORMS_DOCUMENTS,
   SampleDocItem,
 } from '../services/exerciseService';
-import { getAllStudentGroups } from '../services/userService';
+import { getAllStudentGroups, canEditExercise } from '../services/userService';
 import { TeacherExerciseMomentEditor } from './TeacherExerciseMomentEditor';
 import { PdfViewerModal } from './PdfViewerModal';
 import {
@@ -61,6 +61,8 @@ interface TeacherExerciseCreatorModalProps {
   onClose: () => void;
   currentUser: UserAccount | null;
   onStartExerciseProject?: (exercise: TeacherExercise) => void;
+  initialExerciseToEdit?: TeacherExercise | null;
+  onExerciseSaved?: (exercise: TeacherExercise) => void;
 }
 
 type CreatorMode = 'LIST' | 'CHOOSE_CREATION_TYPE' | 'TEMPLATE_FORM' | 'SCRATCH_FORM' | 'PDF_IMPORT';
@@ -71,6 +73,8 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
   onClose,
   currentUser,
   onStartExerciseProject,
+  initialExerciseToEdit,
+  onExerciseSaved,
 }) => {
   const [exercises, setExercises] = useState<TeacherExercise[]>([]);
   const [loading, setLoading] = useState(false);
@@ -81,6 +85,7 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>('RULES');
 
   const availableGroups = getAllStudentGroups();
+  const canEdit = canEditExercise(currentUser);
 
   // Form state for creating / editing exercise
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
@@ -146,12 +151,47 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
     }
   };
 
+  // Start editing existing exercise
+  const handleEditExercise = (ex: TeacherExercise) => {
+    setEditingExerciseId(ex.id);
+    setTitle(ex.title);
+    setCode(ex.code);
+    setDescription(ex.description || '');
+    setProjectType(ex.projectType || 'HUSGRUND');
+    setTargetGroup(ex.targetGroup || 'Alla grupper');
+    setEducationLevel(ex.educationLevel || 'ALL');
+    setSpecialization(ex.specialization || 'ALL');
+    setDifficulty(ex.difficulty || 'MEDEL');
+    setInstructions(ex.instructions || '');
+    setSideA(ex.fieldMeasurements?.sideA);
+    setSideB(ex.fieldMeasurements?.sideB);
+    setFallCmPerM(ex.fieldMeasurements?.fallCmPerM);
+    setLinks(ex.links || []);
+    setAttachedPdfDoc(ex.attachedPdf || null);
+    setExerciseSettings({
+      ...DEFAULT_EXERCISE_SETTINGS,
+      ...(ex.exerciseSettings || {}),
+    });
+    setActiveMoments(
+      ex.customMoments && ex.customMoments.length > 0
+        ? ex.customMoments.map((m) => ({ ...m }))
+        : ALL_MOMENTS.filter((m) => m.projectType === ex.projectType).map((m) => ({ ...m }))
+    );
+    setMode(ex.creationSource === 'SCRATCH' ? 'SCRATCH_FORM' : 'TEMPLATE_FORM');
+  };
+
   useEffect(() => {
     if (isOpen) {
       loadAllExercises();
-      setMode('LIST');
+      if (initialExerciseToEdit) {
+        handleEditExercise(initialExerciseToEdit);
+      } else {
+        setMode('LIST');
+      }
+    } else {
+      setEditingExerciseId(null);
     }
-  }, [isOpen]);
+  }, [isOpen, initialExerciseToEdit]);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -622,35 +662,6 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
     }
   };
 
-  // Start editing existing exercise
-  const handleEditExercise = (ex: TeacherExercise) => {
-    setEditingExerciseId(ex.id);
-    setTitle(ex.title);
-    setCode(ex.code);
-    setDescription(ex.description || '');
-    setProjectType(ex.projectType || 'HUSGRUND');
-    setTargetGroup(ex.targetGroup || 'Alla grupper');
-    setEducationLevel(ex.educationLevel || 'ALL');
-    setSpecialization(ex.specialization || 'ALL');
-    setDifficulty(ex.difficulty || 'MEDEL');
-    setInstructions(ex.instructions || '');
-    setSideA(ex.fieldMeasurements?.sideA);
-    setSideB(ex.fieldMeasurements?.sideB);
-    setFallCmPerM(ex.fieldMeasurements?.fallCmPerM);
-    setLinks(ex.links || []);
-    setAttachedPdfDoc(ex.attachedPdf || null);
-    setExerciseSettings({
-      ...DEFAULT_EXERCISE_SETTINGS,
-      ...(ex.exerciseSettings || {}),
-    });
-    setActiveMoments(
-      ex.customMoments && ex.customMoments.length > 0
-        ? ex.customMoments.map((m) => ({ ...m }))
-        : ALL_MOMENTS.filter((m) => m.projectType === ex.projectType).map((m) => ({ ...m }))
-    );
-    setMode(ex.creationSource === 'SCRATCH' ? 'SCRATCH_FORM' : 'TEMPLATE_FORM');
-  };
-
   // Add external link
   const handleAddLink = () => {
     if (!newLinkTitle.trim() || !newLinkUrl.trim()) return;
@@ -673,7 +684,7 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
     setLinks((prev) => prev.filter((l) => l.id !== linkId));
   };
 
-  // Save exercise
+  // Save exercise (create new or update existing)
   const handleSaveExercise = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !code.trim()) return;
@@ -684,9 +695,14 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
       calculatedDiagonal = Number(Math.sqrt(sideA * sideA + sideB * sideB).toFixed(2));
     }
 
+    const existingEx = editingExerciseId
+      ? exercises.find((item) => item.id === editingExerciseId)
+      : null;
+
     const cleanExercise: TeacherExercise = {
       id:
         editingExerciseId ||
+        existingEx?.id ||
         `ex_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       code: code.trim().toUpperCase(),
       title: title.trim(),
@@ -696,16 +712,22 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
         ? 'PDF_IMPORT'
         : mode === 'SCRATCH_FORM'
         ? 'SCRATCH'
-        : 'TEMPLATE',
+        : (existingEx?.creationSource || 'TEMPLATE'),
       targetGroup: targetGroup.trim(),
       educationLevel,
       specialization,
       difficulty,
       instructions: instructions.trim(),
-      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      createdAt:
+        existingEx?.createdAt ||
+        new Date().toISOString().replace('T', ' ').substring(0, 16),
       updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      createdByTeacherName: currentUser?.displayName || 'Yrkeslärare',
-      createdByTeacherId: currentUser?.id || 'usr_teacher',
+      createdByTeacherName:
+        existingEx?.createdByTeacherName || currentUser?.displayName || 'Yrkeslärare',
+      createdByTeacherId:
+        existingEx?.createdByTeacherId || currentUser?.id || 'usr_teacher',
+      lastEditedByTeacherName: currentUser?.displayName || currentUser?.email || 'Lärare / Admin',
+      lastEditedByTeacherId: currentUser?.id,
       links,
       attachedPdf: attachedPdfDoc || undefined,
       customMoments: activeMoments,
@@ -722,9 +744,13 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
     try {
       await saveTeacherExercise(cleanExercise);
       await loadAllExercises();
+      onExerciseSaved?.(cleanExercise);
+      setEditingExerciseId(null);
       setMode('LIST');
       showToast(
-        `Övning "${cleanExercise.title}" (Kod: ${cleanExercise.code}) har sparats och publicerats!`
+        editingExerciseId
+          ? `Övning "${cleanExercise.title}" (Kod: ${cleanExercise.code}) har uppdaterats!`
+          : `Övning "${cleanExercise.title}" (Kod: ${cleanExercise.code}) har sparats och publicerats!`
       );
     } catch (err: any) {
       showToast('Kunde inte spara övning: ' + (err.message || 'Okänt fel'));
@@ -992,23 +1018,28 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
 
                         <div className="pt-3 border-t border-[#262626] flex flex-wrap items-center justify-between gap-2">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleEditExercise(ex)}
-                              className="px-3 py-1.5 bg-[#252525] hover:bg-[#333333] text-slate-200 hover:text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-orange-400 shrink-0" />
-                              <span>Redigera & Inställningar</span>
-                            </button>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => handleEditExercise(ex)}
+                                className="px-3.5 py-1.5 bg-[#252525] hover:bg-orange-500/20 hover:border-orange-500/60 text-orange-300 hover:text-orange-200 border border-[#383838] rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+                                title="Redigera övningens moment, rubriker, ritning och inställningar"
+                              >
+                                <Edit3 className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                                <span>Redigera övning</span>
+                              </button>
+                            )}
 
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteExercise(ex)}
-                              className="p-1.5 bg-[#252525] hover:bg-rose-950 text-slate-400 hover:text-rose-300 rounded-lg text-xs cursor-pointer transition-colors"
-                              title="Ta bort övning"
-                            >
-                              <Trash2 className="w-4 h-4 shrink-0" />
-                            </button>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteExercise(ex)}
+                                className="p-1.5 bg-[#252525] hover:bg-rose-950 text-slate-400 hover:text-rose-300 border border-[#383838] rounded-xl text-xs cursor-pointer transition-colors"
+                                title="Ta bort övning"
+                              >
+                                <Trash2 className="w-4 h-4 shrink-0" />
+                              </button>
+                            )}
                           </div>
 
                           {onStartExerciseProject && (
@@ -1913,7 +1944,7 @@ Fråga 2: Är schaktbotten avsynad? (Stoppunkt)
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black text-orange-400">
                     {editingExerciseId
-                      ? 'Redigerar lärarövning'
+                      ? `✏️ Redigerar övning: ${title || code || 'Övning'}`
                       : mode === 'TEMPLATE_FORM'
                       ? `Anpassar mall: ${PROJECT_TYPE_LABELS[projectType].title}`
                       : 'Skapar helt egen övning från scratch'}
@@ -2759,13 +2790,17 @@ Fråga 2: Är schaktbotten avsynad? (Stoppunkt)
                 projectType={projectType}
                 activeMoments={activeMoments}
                 onChangeActiveMoments={setActiveMoments}
+                isEditingExistingExercise={Boolean(editingExerciseId)}
               />
 
               {/* Submit Buttons */}
               <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#262626]">
                 <button
                   type="button"
-                  onClick={() => setMode('LIST')}
+                  onClick={() => {
+                    setEditingExerciseId(null);
+                    setMode('LIST');
+                  }}
                   className="min-h-[46px] px-5 bg-[#222222] hover:bg-[#2c2c2c] text-slate-300 font-bold text-xs rounded-xl cursor-pointer transition-colors"
                 >
                   Avbryt
@@ -2779,7 +2814,9 @@ Fråga 2: Är schaktbotten avsynad? (Stoppunkt)
                   <Check className="w-4 h-4 stroke-[3]" />
                   <span>
                     {loading
-                      ? 'Sparar övning...'
+                      ? 'Sparar ändringar...'
+                      : editingExerciseId
+                      ? `Spara ändringar i övningen (${activeMoments.length} moment)`
                       : `Spara & Publicera övning (${activeMoments.length} moment)`}
                   </span>
                 </button>
